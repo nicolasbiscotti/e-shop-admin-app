@@ -1,6 +1,10 @@
 import React, { useReducer } from "react";
-type State = { email: string; password: string };
+type Values = { email: string; password: string };
 type Action = { type: string; payload: string };
+
+type Touched = { email: boolean; password: boolean };
+
+type Errors = { email: string; password: string };
 
 function setEmail(email: string): Action {
   return {
@@ -15,20 +19,83 @@ function setPassword(password: string): Action {
   };
 }
 
-function reducer(state: State, action: Action) {
+function valuesReducer(values: Values, action: Action) {
   switch (action.type) {
     case "setEmail":
-      return { ...state, email: action.payload };
+      return { ...values, email: action.payload };
     case "setPassword":
-      return { ...state, password: action.payload };
-
+      return { ...values, password: action.payload };
     default:
-      return state;
+      return values;
+  }
+}
+
+function touchReducer(touched: Touched, action: { type: string }) {
+  switch (action.type) {
+    case "emailTouched":
+      return { ...touched, email: true };
+    case "passwordTouched":
+      return { ...touched, password: true };
+    default:
+      return touched;
+  }
+}
+
+function errorReducer(errors: Errors, action: Action) {
+  switch (action.type) {
+    case "setEmailError":
+      return { ...errors, email: action.payload };
+    case "setPasswordError":
+      return { ...errors, password: action.payload };
+    default:
+      return errors;
   }
 }
 
 export default function SignInForm() {
-  const [state, dispatch] = useReducer(reducer, { email: "", password: "" });
+  const [values, valuesDispatch] = useReducer(valuesReducer, {
+    email: "",
+    password: "",
+  });
+  const [touched, touchDispatch] = useReducer(touchReducer, {
+    email: false,
+    password: false,
+  });
+  const [errors, errorDispatch] = useReducer(errorReducer, {
+    email: "",
+    password: "",
+  });
+
+  function handleValueChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const { name, value } = e.target;
+    if (name === "email") {
+      valuesDispatch(setEmail(value));
+      if (value.length <= 4 && !errors.email) {
+        errorDispatch({
+          type: "setEmailError",
+          payload: "complete with a valid email",
+        });
+      } else if (value.length > 4 && errors.email) {
+        errorDispatch({
+          type: "setEmailError",
+          payload: "",
+        });
+      }
+    } else if (name === "password") {
+      valuesDispatch(setPassword(value));
+      if (value.length <= 4 && !errors.password) {
+        errorDispatch({
+          type: "setPasswordError",
+          payload: "password must be longer that",
+        });
+      } else if (value.length > 4 && errors.password) {
+        errorDispatch({
+          type: "setPasswordError",
+          payload: "",
+        });
+      }
+    }
+  }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-end bg-gray-50 px-2.5 pb-8 sm:justify-center">
@@ -50,6 +117,7 @@ export default function SignInForm() {
             </a>
           </p>
         </div>
+
         <form
           action="#"
           className="flex min-w-full flex-col items-stretch gap-1"
@@ -57,16 +125,20 @@ export default function SignInForm() {
           <Label
             name="email"
             placeholder="Email address"
-            value={state.email}
-            onChange={(e) => dispatch(setEmail(e.target.value))}
+            value={values.email}
+            onChange={handleValueChange}
+            onBlur={() => touchDispatch({ type: "emailTouched" })}
             rounded="top"
+            error={touched.email && errors.email !== ""}
           />
           <Label
             name="password"
             placeholder="Password"
-            value={state.password}
-            onChange={(e) => dispatch(setPassword(e.target.value))}
+            value={values.password}
+            onChange={handleValueChange}
+            onBlur={() => touchDispatch({ type: "passwordTouched" })}
             rounded="bottom"
+            error={touched.password && errors.password !== ""}
           />
 
           <button
@@ -86,9 +158,23 @@ function Label(props: {
   name: string;
   placeholder: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onBlur: () => void;
   rounded?: string;
+  error: boolean;
 }) {
-  let { value, name, placeholder, onChange, rounded = "" } = props;
+  let {
+    value,
+    name,
+    placeholder,
+    onChange,
+    onBlur,
+    rounded = "",
+    error,
+  } = props;
+  let borderColor = "border-gray-300";
+  if (error) {
+    borderColor = "border-red-700";
+  }
 
   if (rounded === "bottom") {
     rounded = "rounded-b-lg";
@@ -103,11 +189,12 @@ function Label(props: {
   return (
     <label className="relative">
       <input
-        className={`min-w-full ${rounded} py-2 pl-2 text-lg ring-0 sm:text-base`}
+        className={`min-w-full ${rounded} py-2 pl-2 text-lg border ${borderColor} sm:text-base`}
         type={name}
         name={name}
         value={value}
         onChange={onChange}
+        onBlur={onBlur}
       />
       <span
         className={`${invisible} absolute inset-0 py-2 pl-2 text-lg text-gray-500/80 sm:text-base`}
