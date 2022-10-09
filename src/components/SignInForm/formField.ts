@@ -1,29 +1,43 @@
 export interface FormField<T> {
   onValueChange: (listener: (value: T) => void) => () => void;
+  onTouchedChange: (listener: (touched: boolean) => void) => () => void;
   onErrorChange: (listener: (hasError: boolean) => void) => () => void;
-  getHelpText: () => T;
-  setValue: (email: T) => void;
+  getHelpText: () => string;
+  getAlertMessage: () => string;
+  setValue: (value: T) => void;
+  setTouched: (touched: boolean) => void;
 }
 
-export function configureEmailField(config: {
-  initialValue: string;
+type FormFieldConfig<T> = {
+  initialValue: T;
   helpText: string;
   alertMessage: string;
-}): FormField<string> {
+  validateFunction: (toValidate: T) => boolean;
+};
+
+function configureFormField<T>(config: FormFieldConfig<T>): FormField<T> {
   const state = {
     value: config.initialValue,
     helpText: config.helpText,
     alertMessage: config.alertMessage,
+    touched: false,
     error: false,
   };
 
-  const valueListeners: Set<(value: string) => void> = new Set();
+  const valueListeners: Set<(value: T) => void> = new Set();
+  const touchedListeners: Set<(touched: boolean) => void> = new Set();
   const errorListeners: Set<(hasError: boolean) => void> = new Set();
 
-  function onValueChange(listener: (value: string) => void) {
+  function onValueChange(listener: (value: T) => void) {
     valueListeners.add(listener);
     listener(state.value);
     return () => valueListeners.delete(listener);
+  }
+
+  function onTouchedChange(listener: (touched: boolean) => void) {
+    touchedListeners.add(listener);
+    listener(state.touched);
+    return () => touchedListeners.delete(listener);
   }
 
   function onErrorChange(listener: (hasError: boolean) => void) {
@@ -36,17 +50,25 @@ export function configureEmailField(config: {
     return state.helpText;
   }
 
-  function setValue(value: string) {
+  function getAlertMessage() {
+    return state.alertMessage;
+  }
+
+  function setValue(value: T) {
     state.value = value;
     valueListeners.forEach((listener) => listener(state.value));
     validate(state.value);
   }
 
-  function validate(value: string) {
-    const emailRegex = /^[\w.-]{1,}@{1}(?:[\w\-]{1,}[.]{1}){1,2}[\w]{2,}$/;
-    const invalidEmail = !emailRegex.test(value);
-    
-    if (invalidEmail) {
+  function setTouched(touched: boolean) {
+    state.touched = touched;
+    touchedListeners.forEach((listener) => listener(state.touched));
+  }
+
+  function validate(value: T) {
+    const invalidValue = !config.validateFunction(value);
+
+    if (invalidValue) {
       if (!state.error) setError(true);
     } else if (state.error) {
       setError(false);
@@ -60,12 +82,26 @@ export function configureEmailField(config: {
 
   return {
     onValueChange,
+    onTouchedChange,
     onErrorChange,
     getHelpText,
+    getAlertMessage,
     setValue,
+    setTouched,
   };
 }
 
+function validateEmail(toValidate: string): boolean {
+  const emailRegex = /^[\w.-]{1,}@{1}(?:[\w-]{1,}[.]{1}){1,2}[\w]{2,}$/;
+  return emailRegex.test(toValidate);
+}
+
+function validatePhoneNumber(toValidate: string): boolean {
+  const phoneRegex = /^(?:\d{3}|\(\d{3}\))([-/.])\d{3}\1\d{4}$/;
+  return phoneRegex.test(toValidate);
+}
+
+export { configureFormField, validateEmail, validatePhoneNumber };
 // regex to describe the set of possible strings representing emails
 // 1) the begining of the line of data: ^
 // 2) followed by one or more alphanumeric charaters, dots or -: [\w.-]+
